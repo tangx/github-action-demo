@@ -1,36 +1,44 @@
-name: hugo-book auto build 
+name: Go
 
 on:
   push:
-    branches:
-      - master
-      - main
-  # schedule:
-  #   #  UTC 16:00 -> CST 00:00
-  #   # - cron: "10 17 * * *"  # UTC 17:00 -> CST 01:00 (day+1)
-  #   - cron: "10 01 * * *"  # CST with set-timezone
+    tags: 
+      - "v*"
 
 jobs:
-  deploy:
-    runs-on: ubuntu-22.04
+
+  build:
+    name: Build Binary
+    runs-on: macos-latest
     steps:
-      # # https://github.com/szenius/set-timezone
-      # - uses: szenius/set-timezone@v1.0
-      #   with:
-      #     timezoneLinux: "Asia/Shanghai"
 
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
+    - name: Set up Go 1.17
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.17
+      id: go
 
-      # - name: download tools qcloud-cdn-purge
-      #   run: |
-      #     make download
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
 
-      - name: run qcloud-cdn-purge
-        run: |
-          uname -s
-          uname -m
-          which wget
-          which curl
+    - name: Get dependencies
+      run: |
+        go get -v -t -d ./...
+        if [ -f Gopkg.toml ]; then
+            curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+            dep ensure
+        fi
+    - name: Show Environment Variables
+      run: env
 
+    - name: Build Binary
+      run: make buildx
+    
+    - uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: false
+        files: |
+          dnsx.completion.bash
+          internal/global/config.json
+          out/*
